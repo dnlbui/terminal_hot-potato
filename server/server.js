@@ -1,24 +1,35 @@
-const io = require('socket.io')();
+const express = require('express');
+const http = require('http');
+const socketIO = require('socket.io');
+const { PORT } = require('../constants');
 const { startGame } = require('./game');
-const { PORT } = require('../client/constants');
 
-// q: Does 'io.on' emmit the 'connection' event?
-// a: Yes, it does. It is an event listener for the 'connection' event.
-// a: The 'connection' event is emitted when a client connects to the server.
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
 
-// q: Where is the server instantiated?
-// a: The server is instantiated in the client\client.js file.
-// q: What is the difference between the server and the socket?     
-// a: The server is the server. The socket is the connection between the server and the client.
+app.get('/', (req, res) => {
+  res.send('Server is running.');
+});
+
 io.on('connection', (socket) => {
-  console.log('New player connected: ', socket.id);
+  console.log('A player connected: ', socket.id);
+
+  socket.on('playerId', (playerId) => {
+    console.log(`Player ${playerId} connected.`);
+  });
+
+  socket.on('pass', (playerId) => {
+    console.log(`Player ${socket.id} passed the potato to ${playerId}.`);
+  });
 
   socket.on('disconnect', () => {
-    console.log('Player disconnected: ', socket.id);
+    console.log('A player disconnected: ', socket.id);
   });
 });
 
 startGame(io);
 
-io.listen(PORT);
-console.log(`Server listening on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});

@@ -1,58 +1,114 @@
-// this file is for the game logic. It will be imported into server.js and used there.
-// The game logic will be implemented in the startGame function, which will be called when two players have connected to the server.
-// The startGame function will take in the socket.io server as an argument, and will add event listeners to the server.
-// The event listeners will be responsible for handling the game logic. 
-
-
 let players = [];
 let currentPlayerIndex = 0;
+let potatoTimer;
+
+function emitPlayerList(io) {
+  const playerList = players.map((player) => player.id);
+  io.emit('players', playerList);
+}
 
 function startGame(io) {
-  // io.on is an event listener. It listens for the 'connection' event, which is emitted when a client connects to the server.
-  // q: what's the different between io.on and socket.on?
-  // a: io.on is an event listener for the server. socket.on is an event listener for the socket.
   io.on('connection', (socket) => {
-    if(players.length > 2) {
-      socket.emit('message', 'Sorry, the game is full.');
+    console.log('A player connected: ', socket.id);
+
+    // Emit the current player's socket ID to the client
+    socket.emit('playerId', socket.id);
+
+    // Add the player to the players array
+    players.push(socket);
+    emitPlayerList(io);
+
+    if (players.length > 4) {
+      socket.emit('message', 'There are already four players connected. Please wait for the next game.');
       socket.disconnect();
       return;
     }
 
-    players.push(socket);
-    
-    if (players.length === 2) {
+    if (players.length === 4) {
+      // Start the game once four players have joined
       io.emit('start');
-      playRound(io);
+      startRound(io);
     }
 
+    socket.on('pass', (playerId) => {
+      const currentPlayer = players[currentPlayerIndex];
+
+      if (playerId === currentPlayer.id) {
+        // The player passed the potato to themselves
+        socket.emit('message', 'You cannot pass the potato to yourself!');
+      } else if (players.map((player) => player.id).includes(playerId)) {
+        // The player passed the potato to another player
+        io.emit('message', `${socket.id} passed the potato to ${playerId}!`);
+        nextPlayerTurn();
+      } else {
+        // The player passed the potato to an invalid player
+        socket.emit('message', 'Invalid player ID!');
+        const list = players.map((player) => player.id);
+        socket.emit('passPrompt', list);
+      }
+    });
+
     socket.on('disconnect', () => {
-      console.log( 'Player disconnected: ', socket.id);
-      const playerIndex = players.findIndex((player) => player.id === socket.id);
-      if(playerIndex !== -1) {
-        players.splice(playerIndex, 1);
+      console.log('A player disconnected: ', socket.id);
+      // broadcast to all players that a player disconnected
+      socket.broadcast.emit('message', `${socket.id} disconnected!`);
+
+      // Remove the player from the players array
+      players = players.filter((player) => player.id !== socket.id);
+      emitPlayerList(io);
+
+      if (players.length < 2) {
+        // Stop the game if there are less than two players remaining
+        stopGame(io);
+      } else if (socket.id === players[currentPlayerIndex].id) {
+        // The disconnected player loses
+        io.emit('message', `${socket.id} disconnected! ${players[(currentPlayerIndex + 1) % players.length].id} wins!`);
+        stopGame(io);
       }
     });
   });
-};
+}
 
-function playRound(io) {
+function startRound(io) {
+  // Pick a random player to start the round
+  currentPlayerIndex = Math.floor(Math.random() * players.length);
   const currentPlayer = players[currentPlayerIndex];
-  const nextPlayerIndex = (currentPlayerIndex + 1) % players.length;
-  const nextPlayer = players[nextPlayerIndex];
 
-  // currentPlayer.emit is an event emitter. It emits the 'message' event to the current player.
-  currentPlayer.emit('message', 'You have the potato! Pass it by typing a player ID');
-  nextPlayer.emit('message', 'You do not have the potato. Wait for your turn.');
-  // currentPlayer is an event listener. It listens for the 'pass' event, which is emitted when a player passes the potato.
-  currentPlayer.on('pass', (playerId) => {
-    if (playerId === nextPlayer.id) {
-      io.emit('message', `Hot potato passed from ${currentPlayer.id} to ${nextPlayer.id}!`);
-      currentPlayerIndex = nextPlayerIndex;
-      playRound(io);
-    } else {
-      currentPlayer.emit('message', `You can't pass to ${playerId}! Try again.`);
-    }
-  });
-};
+  io.emit('message', `Game started! ${currentPlayer.id} has the potato. Pass it by typing a player ID.`);
+  currentPlayer.emit('message', 'You have the potato!');
+  currentPlayer.emit('passPrompt');
+  startPotatoTimer(io);
+}
 
-module.exports = { startGame, playRound };
+function nextPlayerTurn() {
+  const currentPlayer = players[currentPlayerIndex];
+  currentPlayer.emit('message', 'You do not have the potato. Wait for your turn.');
+
+  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
+
+  const nextPlayer = players[currentPlayerIndex];
+  nextPlayer.emit('message', 'You have the potato! Pass it by typing a player ID.');
+  nextPlayer.emit('passPrompt');
+}
+
+function startPotatoTimer(io) {
+  const currentPlayer = players[currentPlayerIndex];
+
+  // Start a timer for passing the potato
+  potatoTimer = setTimeout(() => {
+    io.emit('message', `Time's up! ${currentPlayer.id} dropped the potato!`);
+    io.emit('message', `The potato is currently held by ${players[currentPlayerIndex].id}`);
+    stopGame(io);
+  }, 30000);
+}
+
+function stopGame(io) {
+  players = [];
+  currentPlayerIndex = 0;
+  clearTimeout(potatoTimer);
+
+  io.emit('stop');
+}
+
+module.exports = { startGame };
+

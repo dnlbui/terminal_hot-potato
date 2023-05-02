@@ -1,64 +1,126 @@
 const io = require('socket.io-client');
-const read = require('readcommand');
-const { SERVER_URL } = require('./constants');
-// io is the server with an argument of the server URL.This establishes the connection between the server and the client.
-const socket = io(SERVER_URL);
+const readcommand = require('readcommand');
 
-socket.on('start', () => {
-  console.log('Game started!');
+const socket = io('http://localhost:3000');
+
+let playerList = [];
+
+socket.on('connect', () => {
+  console.log('Connected to the server!');
+
+  // Emit the player's socket ID to the server
+  socket.emit('playerId', socket.id);
 });
-// q: when does the server emit the 'message' event?
-// a: The server emits the 'message' event when the player passes the potato to another player.
+
+socket.on('disconnect', () => {
+  console.log('Disconnected from the server!');
+});
+
 socket.on('message', (message) => {
   console.log(message);
 });
 
-socket.on('disconnect', () => {
-  console.log('Disconnected from server.');
-  // read.close() closes the readcommand module.
-  // q: what happens when read.close() is called?
-  // a: The readcommand module is closed.
-  read.close();
+socket.on('start', () => {
+  console.log('Game started!');
 });
 
-read.on('line', (input) => {
-  socket.emit('pass', input);
+socket.on('stop', () =>
+console.log('Game stopped!'));
+
+socket.on('players', (playerList) => {
+  console.log('Connected players:', playerList);
 });
 
-read.on('close', () => {
-  socket.close();
+socket.on('playerId', (playerId) => {
+  console.log(`Your player ID is: ${playerId}`);
 });
 
-read.start();
+socket.on('passPrompt', (list) => {
+  console.log('Choose a player to pass the potato to:');
+  console.log(list?.join(', '));
 
-socket.on('connect', () => {
-  console.log('Connected to server.');
-  read.prompt('> ');
-});
+  readcommand.read((err, args) => {
+    if (err) {
+      console.error('Error reading command: ', err);
+      return;
+    }
 
-socket.on('playerIdPrompt', () => {
-  read.prompt('Enter your player ID: ');
-});
+    const playerId = args[0];
 
-socket.on('invalidPlayerId', () => {
-  console.log('Invalid player ID. Try again.');
-  read.prompt('Enter your player ID: ');
-});
-// q: when is 'line' emitted?
-// a: 'line' is emitted when the user presses the enter key.
-// q: what is the difference between 'line' and 'close'?
-// a: 'line' is emitted when the user presses the enter key. 'close' is emitted when the user presses ctrl + c.
-read.on('line', (input) => {
-  if(!socket.playerId) {
-    socket.emit('playerId', input);
-    socket.playerId = input;
-    console.log('Your player ID is: ', input);
-    read.prompt('> ');
-  } else {
-    socket.emit('pass', input);
-  }
+    // Emit the 'pass' event to the server with the selected player ID
+    socket.emit('pass', playerId);
+  });
 });
 
 
-const playerId = 'Player1';
-socket.emit('playerId', playerId);
+// const io = require('socket.io-client');
+// const readline = require('readline');
+// const _ = require('underscore');
+
+// const socket = io('http://localhost:3000');
+
+// let playerList = [];
+
+// socket.on('connect', () => {
+//   console.log('Connected to the server!');
+
+//   // Emit the player's socket ID to the server
+//   socket.emit('playerId', socket.id);
+// });
+
+// socket.on('disconnect', () => {
+//   console.log('Disconnected from the server!');
+// });
+
+// socket.on('message', (message) => {
+//   console.log(message);
+// });
+
+// socket.on('start', () => {
+//   console.log('Game started!');
+// });
+
+// socket.on('stop', () => console.log('Game stopped!'));
+
+// socket.on('players', (list) => {
+//   playerList = list;
+//   console.log('Connected players:', playerList);
+// });
+
+// socket.on('playerId', (playerId) => {
+//   console.log(`Your player ID is: ${playerId}`);
+// });
+
+// socket.on('passPrompt', (list) => {
+//   console.log('Choose a player to pass the potato to:');
+//   if (list) {
+//     console.log(list.join(', '));
+
+//     const rl = readline.createInterface({
+//       input: process.stdin,
+//       output: process.stdout,
+//     });
+
+//     rl.question('> ', (playerId) => {
+//       rl.close();
+//       // Emit the 'pass' event to the server with the selected player ID
+//       socket.emit('pass', playerId);
+//     });
+//   }
+// });
+
+// function _autocomplete(args, callback) {
+//   if (_.isEmpty(args)) {
+//     return callback(null, playerList);
+//   }
+
+//   let replacements = [];
+//   const lastArg = _.last(args);
+//   if (args.length === 1) {
+//     replacements = _.filter(playerList, function (player) {
+//       return player.indexOf(lastArg) === 0;
+//     });
+//   }
+
+//   return callback(null, replacements);
+// }
