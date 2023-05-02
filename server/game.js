@@ -5,6 +5,8 @@ let potatoTimer;
 function emitPlayerList(io) {
   const playerList = players.map((player) => player.id);
   io.emit('players', playerList);
+  // emit to only the player who just joined
+  players[players.length - 1].emit('playersNumberInPlayers', players.indexOf(players[players.length - 1]) + 1);
 }
 
 function startGame(io) {
@@ -13,6 +15,7 @@ function startGame(io) {
 
     // Emit the current player's socket ID to the client
     socket.emit('playerId', socket.id);
+   
 
     // Add the player to the players array
     players.push(socket);
@@ -31,7 +34,7 @@ function startGame(io) {
     }
 
     socket.on('pass', (playerId) => {
-      const currentPlayer = players[currentPlayerIndex];
+      const currentPlayer = playerId;
 
       if (playerId === currentPlayer.id) {
         // The player passed the potato to themselves
@@ -39,7 +42,9 @@ function startGame(io) {
       } else if (players.map((player) => player.id).includes(playerId)) {
         // The player passed the potato to another player
         io.emit('message', `${socket.id} passed the potato to ${playerId}!`);
-        nextPlayerTurn();
+        console.log('inside of pass: '+ playerId)
+        currentPlayerIndex = players.findIndex((player) => player.id === playerId);
+        nextPlayerTurn(currentPlayerIndex);
       } else {
         // The player passed the potato to an invalid player
         socket.emit('message', 'Invalid player ID!');
@@ -80,29 +85,24 @@ function startRound(io) {
   startPotatoTimer(io);
 }
 
-function nextPlayerTurn() {
+function nextPlayerTurn(currentPlayerIndex) {
   const currentPlayer = players[currentPlayerIndex];
   currentPlayer.emit('message', 'You do not have the potato. Wait for your turn.');
 
-  currentPlayerIndex = (currentPlayerIndex + 1) % players.length;
-
-  const nextPlayer = players[currentPlayerIndex];
-  nextPlayer.emit('message', 'You have the potato! Pass it by typing a player ID.');
-  nextPlayer.emit('passPrompt');
+  
+  currentPlayer.emit('message', 'You have the potato! Pass it by typing a player ID.');
+  currentPlayer.emit('passPrompt');
 }
 
 function startPotatoTimer(io) {
-  const currentPlayer = players[currentPlayerIndex];
-
   // Start a timer for passing the potato
   potatoTimer = setTimeout(() => {
-    io.emit('message', `Time's up! ${currentPlayer.id} dropped the potato!`);
-    io.emit('message', `The potato is currently held by ${players[currentPlayerIndex].id}`);
     stopGame(io);
   }, 30000);
 }
 
 function stopGame(io) {
+  io.emit('message', `Time's up! ${players[currentPlayerIndex].id} dropped the potato and lost!`);
   players = [];
   currentPlayerIndex = 0;
   clearTimeout(potatoTimer);
