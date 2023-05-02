@@ -49,7 +49,7 @@ function startGame(io) {
       } else {
         // The player passed the potato to an invalid player
         socket.emit('message', 'Invalid player ID! Try again.');
-        socket.emit('passPrompt', list);
+        socket.emit('passPrompt');
       }
     });
 
@@ -101,7 +101,18 @@ function startPotatoTimer(io) {
 }
 
 function stopGame(io) {
-  io.emit('message', `Time's up! ${players[currentPlayerIndex].id} dropped the potato and lost!`);
+  const currentPlayer = players[currentPlayerIndex];
+  const currentPlayerId = currentPlayer.id;
+
+  io.emit('message', `Time's up! ${currentPlayerId} dropped the potato and lost!`);
+  players.forEach((player) => {
+    if (player.id === currentPlayerId) {
+      player.emit('message', 'You lost!');
+    } else {
+      player.emit('message', 'You won!');
+    }
+  });
+
   players = [];
   currentPlayerIndex = 0;
   clearTimeout(potatoTimer);
