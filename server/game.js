@@ -1,3 +1,5 @@
+const { GAME_DURATION } = require('../constants');
+
 let players = [];
 let currentPlayerIndex = 0;
 let potatoTimer;
@@ -97,7 +99,7 @@ function startPotatoTimer(io) {
   // Start a timer for passing the potato
   potatoTimer = setTimeout(() => {
     stopGame(io);
-  }, 30000);
+  }, GAME_DURATION * 1000);
 }
 
 function stopGame(io) {
