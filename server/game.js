@@ -34,21 +34,21 @@ function startGame(io) {
     }
 
     socket.on('pass', (playerId) => {
-      const currentPlayer = playerId;
+      const currentPlayer = players[currentPlayerIndex] || {} ;
 
       if (playerId === currentPlayer.id) {
         // The player passed the potato to themselves
-        socket.emit('message', 'You cannot pass the potato to yourself!');
+        socket.emit('message', 'You cannot pass the potato to yourself! Try again.');
+        socket.emit('playersTurn', true);
+        socket.emit('passPrompt');
       } else if (players.map((player) => player.id).includes(playerId)) {
         // The player passed the potato to another player
         io.emit('message', `${socket.id} passed the potato to ${playerId}!`);
-        console.log('inside of pass: '+ playerId)
         currentPlayerIndex = players.findIndex((player) => player.id === playerId);
-        nextPlayerTurn(currentPlayerIndex);
+        nextPlayerTurn();
       } else {
         // The player passed the potato to an invalid player
-        socket.emit('message', 'Invalid player ID!');
-        const list = players.map((player) => player.id);
+        socket.emit('message', 'Invalid player ID! Try again.');
         socket.emit('passPrompt', list);
       }
     });
@@ -85,11 +85,10 @@ function startRound(io) {
   startPotatoTimer(io);
 }
 
-function nextPlayerTurn(currentPlayerIndex) {
+function nextPlayerTurn() {
   const currentPlayer = players[currentPlayerIndex];
-  currentPlayer.emit('message', 'You do not have the potato. Wait for your turn.');
-
   
+  currentPlayer.emit('playersTurn', true);
   currentPlayer.emit('message', 'You have the potato! Pass it by typing a player ID.');
   currentPlayer.emit('passPrompt');
 }

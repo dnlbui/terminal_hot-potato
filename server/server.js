@@ -15,10 +15,6 @@ app.get('/', (req, res) => {
 io.on('connection', (socket) => {
   console.log('A player connected: ', socket.id);
 
-  socket.on('playerId', (playerId) => {
-    console.log(`Player ${playerId} connected.`);
-  });
-
   socket.on('pass', (playerId) => {
     console.log(`Player ${socket.id} passed the potato to ${playerId}.`);
   });
